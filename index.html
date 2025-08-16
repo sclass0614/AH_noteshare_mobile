@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
-    <title>우리집 노트 (모바일)</title>
+    <title>우리집 노트(모바일)</title>
     <link rel="icon" href="data:,">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +31,8 @@
 
     <!-- 헤더 부분: 직원번호와 직원명 표시 -->
     <div class="header" id="headerSection">
-      <div class="title">우리집 노트</div>
+      <div class="title">우리집 노트(모바일)
+      </div>
       <div class="user-info">
         <span id="userEmployeeNumber">-</span> | <span id="userEmployeeName">-</span>
       </div>
@@ -664,6 +665,13 @@
         
         currentPage = pageName;
         console.log('페이지 전환:', pageName);
+        
+        // 편집 페이지로 전환할 때 textarea 높이 재계산
+        if (pageName === 'editor') {
+          setTimeout(() => {
+            calculateOptimalTextareaHeight();
+          }, 100);
+        }
       }
 
       // 노트 목록 로드 (모바일 최적화)
@@ -1520,9 +1528,73 @@
 
 
 
+      // 페이지 로딩 시 textarea 최적 높이 계산 함수
+      function calculateOptimalTextareaHeight() {
+        try {
+          const textarea = document.getElementById('mainContent');
+          if (!textarea) return;
+
+          // 전체 뷰포트 높이
+          const viewportHeight = window.innerHeight;
+          
+          // 상단 요소들의 높이 계산
+          const navHeight = 45; // --nav-height CSS 변수값
+          const headerHeight = 50; // --header-height CSS 변수값
+          
+          // 편집 페이지의 다른 요소들 높이 계산
+          const editorSection = document.querySelector('.editor-section');
+          if (!editorSection) return;
+          
+          // textarea를 제외한 다른 폼 요소들의 높이 계산
+          const formGroups = editorSection.querySelectorAll('.form-group:not(.textarea-container)');
+          let otherElementsHeight = 0;
+          
+          formGroups.forEach(group => {
+            otherElementsHeight += group.offsetHeight || 0;
+          });
+          
+          // 버튼 섹션 높이
+          const buttonSection = editorSection.querySelector('.button-section');
+          if (buttonSection) {
+            otherElementsHeight += buttonSection.offsetHeight || 0;
+          }
+          
+          // 패딩과 마진 여유공간 (약 60px)
+          const paddingMarginSpace = 60;
+          
+          // 사용 가능한 높이 계산
+          const availableHeight = viewportHeight - navHeight - headerHeight - otherElementsHeight - paddingMarginSpace;
+          
+          // 최소 높이와 최대 높이 제한
+          const minHeight = 120;
+          const maxHeight = Math.max(availableHeight, minHeight);
+          
+          // textarea 높이 설정
+          textarea.style.height = maxHeight + 'px';
+          
+          console.log('📐 Textarea 최적 높이 계산:', {
+            viewportHeight: viewportHeight,
+            navHeight: navHeight,
+            headerHeight: headerHeight,
+            otherElementsHeight: otherElementsHeight,
+            availableHeight: availableHeight,
+            finalHeight: maxHeight
+          });
+          
+        } catch (error) {
+          console.error('Textarea 높이 계산 중 오류:', error);
+        }
+      }
+
       // textarea 높이 자동 조정 함수 - 완전히 새로운 구현
       function autoResizeTextarea(textarea) {
         if (!textarea) return;
+        
+        // 페이지 로딩 시에는 최적 높이를 계산
+        if (!textarea.value || textarea.value.trim() === '') {
+          calculateOptimalTextareaHeight();
+          return;
+        }
         
         // 임시로 높이를 auto로 설정하여 실제 내용 높이 측정
         const originalHeight = textarea.style.height;
@@ -1599,6 +1671,11 @@
         
         await updateNoteNumber();
         setWriteMode();
+        
+        // 페이지 로딩 시 textarea 최적 높이 계산
+        setTimeout(() => {
+          calculateOptimalTextareaHeight();
+        }, 200);
       }
 
       // 이벤트 리스너 설정
@@ -1701,9 +1778,15 @@
 
           // 창 크기 변경 시에도 높이 재조정
           window.addEventListener('resize', function() {
-            if (document.activeElement === mainContentTextarea) {
+            // 편집 페이지가 활성화된 경우에만 실행
+            if (currentPage === 'editor') {
               setTimeout(() => {
-                autoResizeTextarea(mainContentTextarea);
+                if (document.activeElement === mainContentTextarea) {
+                  autoResizeTextarea(mainContentTextarea);
+                } else {
+                  // 포커스가 없을 때는 최적 높이 재계산
+                  calculateOptimalTextareaHeight();
+                }
               }, 100);
             }
           });

@@ -671,9 +671,11 @@ body {
     font-family: "Noto Sans KR", "맑은 고딕", "Malgun Gothic", sans-serif;
     line-height: 1.6;
     resize: none;
-    overflow-y: hidden;
+    overflow-y: auto;
     transition: border-color 0.2s;
     box-sizing: border-box;
+    /* 동적 높이 계산을 위한 기본 설정 */
+    height: auto;
 }
 
 .textarea-container textarea:focus {
@@ -965,6 +967,8 @@ body {
     .form-col {
         flex: 1;
         min-width: 0;
+        /* 모든 컬럼을 동일한 너비로 강제 설정 */
+        width: 50%;
     }
     
     .form-col label {
@@ -977,6 +981,9 @@ body {
         padding: 0.55rem 0.6rem;
         height: 44px;
         box-sizing: border-box;
+        /* 모든 input의 너비를 100%로 강제 설정 */
+        width: 100% !important;
+        max-width: 100% !important;
     }
     
     .action-btn {
