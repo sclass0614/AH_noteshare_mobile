@@ -407,7 +407,7 @@
               <h3 style="color: #e74c3c; margin-bottom: 1rem; font-size: 1.1rem;">⚠️ 접근 권한 없음</h3>
               <p style="margin-bottom: 1rem; font-size: 0.9rem; line-height: 1.4;">직원명단에 등록되지 않은 사용자입니다.</p>
               <p style="font-size: 0.8rem; color: #666; line-height: 1.3;">관리자에게 문의하시기 바랍니다.</p>
-              <p style="font-size: 0.7rem; color: #999; margin-top: 1rem; word-break: break-all;">현재 사용자: ${currentUser}</p>
+              <p style="font-size: 0.7rem; color: #999; margin-top: 1rem; word-break: break-all;">현재 사용자: ${getSafeCurrentUser()}</p>
             </div>
           `;
           
@@ -415,7 +415,8 @@
         }
         
         // 헤더의 사용자 정보도 업데이트
-        document.getElementById('userEmployeeNumber').textContent = currentUser;
+        const safeCurrentUser = getSafeCurrentUser();
+        document.getElementById('userEmployeeNumber').textContent = safeCurrentUser;
         document.getElementById('userEmployeeName').textContent = '권한 없음';
       }
 
@@ -473,6 +474,40 @@
 
       // 전역 변수: 작업 실행 중 flag
       let isExecutingAction = false;
+
+      // 안전한 사용자 정보 가져오기 함수 (userEmployeeNumber 요소에서)
+      function getSafeCurrentUser() {
+        try {
+          const userEmployeeNumberElement = document.getElementById('userEmployeeNumber');
+          if (userEmployeeNumberElement && userEmployeeNumberElement.textContent.trim() && 
+              userEmployeeNumberElement.textContent.trim() !== '-') {
+            const safeUser = userEmployeeNumberElement.textContent.trim();
+            console.log('✅ userEmployeeNumber에서 안전하게 사용자 정보 가져옴:', safeUser);
+            return safeUser;
+          }
+          
+          // fallback: 기존 currentUser 사용
+          if (currentUser && currentUser.trim()) {
+            console.log('🔄 기존 currentUser 사용:', currentUser);
+            return currentUser;
+          }
+          
+          // 최종 fallback: sessionStorage에서 가져오기
+          const sessionUser = sessionStorage.getItem('currentUser') || 
+                             sessionStorage.getItem('userInfo') || 
+                             sessionStorage.getItem('empNo');
+          if (sessionUser && sessionUser.trim()) {
+            console.log('💾 sessionStorage에서 사용자 정보 복원:', sessionUser);
+            return sessionUser.trim();
+          }
+          
+          console.warn('⚠️ 사용자 정보를 찾을 수 없음, 기본값 사용');
+          return 'test001';
+        } catch (error) {
+          console.error('❌ 사용자 정보 가져오기 실패:', error);
+          return currentUser || 'test001';
+        }
+      }
 
       // parent page에서 사용자 정보 가져오기 함수 (개선된 버전)
       async function getUserFromParent(skipParentCheck = false) {
@@ -699,7 +734,8 @@
         try {
           console.log('📝 === 노트 목록 로드 시작 ===');
           
-          if (!isValidEmployee(currentUser)) {
+          const safeCurrentUserForValidation = getSafeCurrentUser();
+          if (!isValidEmployee(safeCurrentUserForValidation)) {
             console.log('🚫 직원명단에 없는 사용자입니다. 페이지 전체를 비활성화합니다.');
             cachedNotes = [];
             displayNotes(cachedNotes);
@@ -713,8 +749,9 @@
             initializeDateRange();
           }
           
+          const safeCurrentUser = getSafeCurrentUser();
           console.log('📅 날짜 범위:', currentDateRange);
-          console.log('👤 현재 사용자:', currentUser);
+          console.log('👤 현재 사용자:', safeCurrentUser);
           
           // 모바일에서 네트워크 타임아웃 처리
           const timeoutPromise = new Promise((_, reject) => {
@@ -722,7 +759,7 @@
           });
           
           const notesPromise = getNoteshareDataByDateRange(
-            currentUser, 
+            safeCurrentUser, 
             currentDateRange.startDate, 
             currentDateRange.endDate
           );
@@ -959,7 +996,8 @@
         isEditMode = false;
         selectedNoteId = note.id;
         
-        const canEdit = note.직원번호 === currentUser || currentUser === 'admin' || currentUser === 's25001';
+        const safeCurrentUser = getSafeCurrentUser();
+        const canEdit = note.직원번호 === safeCurrentUser || safeCurrentUser === 'admin' || safeCurrentUser === 's25001';
         
         document.getElementById('saveMainBtn').disabled = true;
         document.getElementById('editMainBtn').disabled = !canEdit;
@@ -1060,10 +1098,11 @@
       // 노트번호 업데이트
       async function updateNoteNumber() {
         const dateValue = document.getElementById('mainDate').value;
-        if (dateValue && currentUser) {
+        const safeCurrentUser = getSafeCurrentUser();
+        if (dateValue && safeCurrentUser) {
           try {
             const formattedDate = formatDateForStorage(dateValue);
-            const noteNumber = await generateNoteNumber(currentUser, formattedDate);
+            const noteNumber = await generateNoteNumber(safeCurrentUser, formattedDate);
             document.getElementById('mainNumber').value = noteNumber;
           } catch (error) {
             console.error('노트번호 생성 실패:', error);
@@ -1083,9 +1122,10 @@
           return false;
         }
         
-        const canEdit = selectedNote.직원번호 === currentUser || 
-                       currentUser === 'admin' || 
-                       currentUser === 's25001';
+        const safeCurrentUser = getSafeCurrentUser();
+        const canEdit = selectedNote.직원번호 === safeCurrentUser || 
+                       safeCurrentUser === 'admin' || 
+                       safeCurrentUser === 's25001';
         
         return canEdit;
       }
@@ -1119,9 +1159,16 @@
             return;
           }
 
+          // 안전한 사용자 정보 가져오기
+          const safeCurrentUser = getSafeCurrentUser();
+          const userNameElement = document.getElementById('userEmployeeName');
+          const safeCurrentUserName = userNameElement && userNameElement.textContent.trim() !== '-' 
+            ? userNameElement.textContent.trim() 
+            : (currentUserName || '알 수 없음');
+
           const noteData = {
-            직원번호: currentUser,
-            직원명: currentUserName,
+            직원번호: safeCurrentUser,
+            직원명: safeCurrentUserName,
             구분: document.querySelector('input[name="category"]:checked').value,
             노트날짜: formatDateForStorage(document.getElementById('mainDate').value),
             노트번호: document.getElementById('mainNumber').value,
@@ -1220,9 +1267,16 @@
             return;
           }
 
+          // 안전한 사용자 정보 가져오기
+          const safeCurrentUser = getSafeCurrentUser();
+          const userNameElement = document.getElementById('userEmployeeName');
+          const safeCurrentUserName = userNameElement && userNameElement.textContent.trim() !== '-' 
+            ? userNameElement.textContent.trim() 
+            : (currentUserName || '알 수 없음');
+
           const noteData = {
-            직원번호: currentUser,
-            직원명: currentUserName,
+            직원번호: safeCurrentUser,
+            직원명: safeCurrentUserName,
             구분: document.querySelector('input[name="category"]:checked').value,
             노트날짜: formatDateForStorage(document.getElementById('mainDate').value),
             노트번호: document.getElementById('mainNumber').value,
@@ -1315,7 +1369,9 @@
         const publishFilter = document.querySelector('input[name="publishFilter"]:checked').value;
 
         try {
-          if (!isValidEmployee(currentUser)) {
+          const safeCurrentUser = getSafeCurrentUser();
+          
+          if (!isValidEmployee(safeCurrentUser)) {
             console.log('🚫 직원명단에 없는 사용자입니다. 페이지 전체를 비활성화합니다.');
             cachedNotes = [];
             displayNotes(cachedNotes);
@@ -1329,7 +1385,7 @@
             currentDateRange.startDate = startDate;
             currentDateRange.endDate = endDate;
             
-            cachedNotes = await getNoteshareDataByDateRange(currentUser, startDate, endDate);
+            cachedNotes = await getNoteshareDataByDateRange(safeCurrentUser, startDate, endDate);
             console.log('새로 조회된 노트 수:', cachedNotes.length);
           }
           
