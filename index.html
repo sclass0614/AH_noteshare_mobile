@@ -16,7 +16,7 @@
          <!-- Supabase JS 라이브러리 -->
      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js" onerror="console.error('Supabase CDN 로딩 실패')"></script>
      <script src="./supabase.js" onerror="console.error('supabase.js 로딩 실패')"></script>
-     <!-- authCheck.js: window.isExecutingAction === true 일 때는 인증 체크를 우회해야 함 -->
+     <!-- authCheck.js: window.isExecutingAction === true 또는 window.isSwitchingTab === true 일 때는 인증 체크를 우회해야 함 -->
      <script type="module" src="https://sclass0614.github.io/authCheck/authCheck.js" onerror="console.log('authCheck.js 로딩 실패 - 계속 진행')"></script>
   </head>
   <body>
@@ -474,16 +474,18 @@
 
              // 전역 변수: 작업 실행 중 flag (authCheck 우회용으로 window 객체에도 노출)
        let isExecutingAction = false;
+       let isSwitchingTab = false; // 탭 전환 중 플래그 추가
        
        // authCheck.js가 참조할 수 있도록 전역으로 노출
        window.isExecutingAction = false;
+       window.isSwitchingTab = false;
 
       // parent page에서 사용자 정보 가져오기 함수 (개선된 버전)
       async function getUserFromParent(skipParentCheck = false) {
         try {
-          // 작업 실행 중일 때는 parent 체크를 건너뛸 수 있도록 함
-          if (skipParentCheck || isExecutingAction) {
-            console.log('🔄 작업 실행 중이므로 기존 사용자 정보 유지:', currentUser);
+          // 작업 실행 중이거나 탭 전환 중일 때는 parent 체크를 건너뛸 수 있도록 함
+          if (skipParentCheck || isExecutingAction || isSwitchingTab) {
+            console.log('🔄 작업 실행 중이거나 탭 전환 중이므로 기존 사용자 정보 유지:', currentUser);
             if (currentUser && currentUser.trim()) {
               return;
             }
@@ -522,8 +524,8 @@
             }
           }
           
-          // 새로운 사용자 정보가 있고 기존과 다르면 캐시 초기화 (단, 작업 실행 중이 아닐 때만)
-          if (newUserFromParent && newUserFromParent !== currentUser && !isExecutingAction) {
+          // 새로운 사용자 정보가 있고 기존과 다르면 캐시 초기화 (단, 작업 실행 중이거나 탭 전환 중이 아닐 때만)
+          if (newUserFromParent && newUserFromParent !== currentUser && !isExecutingAction && !isSwitchingTab) {
             console.log('🔄 사용자 변경 감지:', currentUser, '→', newUserFromParent);
             console.log('🗑️ 기존 캐시 정보 삭제');
             
@@ -678,6 +680,11 @@
 
       // 페이지 전환 함수
       function switchToPage(pageName) {
+        // 탭 전환 시작 플래그 설정 (authCheck 우회용)
+        isSwitchingTab = true;
+        window.isSwitchingTab = true;
+        console.log('🔄 탭 전환 시작:', pageName, '- authCheck 우회 활성화');
+        
         const pages = document.querySelectorAll('.page');
         const navBtns = document.querySelectorAll('.nav-btn');
         
@@ -696,6 +703,13 @@
             calculateOptimalTextareaHeight();
           }, 100);
         }
+        
+        // 탭 전환 완료 후 플래그 해제 (지연 실행)
+        setTimeout(() => {
+          isSwitchingTab = false;
+          window.isSwitchingTab = false;
+          console.log('✅ 탭 전환 완료 - authCheck 우회 해제');
+        }, 500); // 충분한 시간을 두어 탭 전환이 완전히 완료되도록 함
       }
 
       // 노트 목록 로드 (모바일 최적화)
@@ -1886,9 +1900,9 @@
             console.log('🔒 탭 비활성화 - 보안 모드');
           } else {
             console.log('👁️ 탭 활성화 - 사용자 정보 재확인');
-            // 탭이 다시 활성화될 때 사용자 정보 재확인 (작업 실행 중이 아닐 때만)
+            // 탭이 다시 활성화될 때 사용자 정보 재확인 (작업 실행 중이거나 탭 전환 중이 아닐 때만)
             setTimeout(async () => {
-              if (!isExecutingAction) {
+              if (!isExecutingAction && !isSwitchingTab) {
                 await getUserFromParent(false);
                 await loadUserInfo();
               }
