@@ -471,15 +471,27 @@
         }
       }
 
-      // parent page에서 사용자 정보 가져오기 함수
-      async function getUserFromParent() {
+      // 전역 변수: 작업 실행 중 flag
+      let isExecutingAction = false;
+
+      // parent page에서 사용자 정보 가져오기 함수 (개선된 버전)
+      async function getUserFromParent(skipParentCheck = false) {
         try {
+          // 작업 실행 중일 때는 parent 체크를 건너뛸 수 있도록 함
+          if (skipParentCheck || isExecutingAction) {
+            console.log('🔄 작업 실행 중이므로 기존 사용자 정보 유지:', currentUser);
+            if (currentUser && currentUser.trim()) {
+              return;
+            }
+          }
+
           // 새로운 로그인 감지를 위해 parent에서 먼저 확인
           let newUserFromParent = null;
           
-          // 방법 1: parent window에서 직접 접근하여 최신 정보 확인
-          if (window.parent && window.parent !== window) {
+          // 방법 1: parent window에서 직접 접근하여 최신 정보 확인 (안전하게 처리)
+          if (window.parent && window.parent !== window && !skipParentCheck) {
             try {
+              // Cross-origin 접근 제한을 고려하여 안전하게 처리
               const parentUserInfo = window.parent.document.getElementById('userInfo');
               if (parentUserInfo) {
                 // data-emp-no 속성에서 먼저 시도
@@ -502,12 +514,12 @@
                 }
               }
             } catch (error) {
-              console.log('Parent 접근 실패, 다른 방법 시도');
+              console.log('Parent 접근 실패 (Cross-origin 제한 가능성), 다른 방법 시도');
             }
           }
           
-          // 새로운 사용자 정보가 있고 기존과 다르면 캐시 초기화
-          if (newUserFromParent && newUserFromParent !== currentUser) {
+          // 새로운 사용자 정보가 있고 기존과 다르면 캐시 초기화 (단, 작업 실행 중이 아닐 때만)
+          if (newUserFromParent && newUserFromParent !== currentUser && !isExecutingAction) {
             console.log('🔄 사용자 변경 감지:', currentUser, '→', newUserFromParent);
             console.log('🗑️ 기존 캐시 정보 삭제');
             
@@ -540,22 +552,20 @@
           }
           
           // 방법 0: 이미 currentUser가 설정되어 있고 변경이 없다면 재사용
-          if (currentUser && currentUser.trim() && !newUserFromParent) {
+          if (currentUser && currentUser.trim()) {
             console.log('🔄 기존 사용자 정보 재사용:', currentUser);
             return;
           }
 
-          // 방법 2: sessionStorage에서 확인 (새로고침 대응, 단 parent 정보가 없을 때만)
-          if (!newUserFromParent) {
-            const sessionUser = sessionStorage.getItem('currentUser') || 
-                               sessionStorage.getItem('userInfo') || 
-                               sessionStorage.getItem('empNo');
-            if (sessionUser && sessionUser.trim()) {
-              currentUser = sessionUser.trim();
-              console.log('✅ sessionStorage에서 사용자 정보 복원:', currentUser);
-              saveUserInfoToStorage(currentUser);
-              return;
-            }
+          // 방법 2: sessionStorage에서 확인 (새로고침 대응)
+          const sessionUser = sessionStorage.getItem('currentUser') || 
+                             sessionStorage.getItem('userInfo') || 
+                             sessionStorage.getItem('empNo');
+          if (sessionUser && sessionUser.trim()) {
+            currentUser = sessionUser.trim();
+            console.log('✅ sessionStorage에서 사용자 정보 복원:', currentUser);
+            saveUserInfoToStorage(currentUser);
+            return;
           }
 
           const userInfoElement = document.getElementById('userInfo');
@@ -565,8 +575,6 @@
             saveUserInfoToStorage(currentUser);
             return;
           }
-
-          // 방법 3: parent window에서 직접 접근 (이미 위에서 처리됨, 중복 제거)
 
           const urlParams = new URLSearchParams(window.location.search);
           const userParam = urlParams.get('user') || urlParams.get('userId') || urlParams.get('empNo');
@@ -585,28 +593,40 @@
             return;
           }
 
-          // 방법 6: postMessage로 parent에게 요청
-          if (window.parent && window.parent !== window) {
-            return new Promise((resolve) => {
-              const timeout = setTimeout(() => {
-                currentUser = 'test001';
-                console.log('⚠️ 모든 방법 실패, 기본값 사용:', currentUser);
-                saveUserInfoToStorage(currentUser);
-                resolve();
-              }, 2000);
+          // 방법 6: postMessage로 parent에게 요청 (안전하게 처리)
+          if (window.parent && window.parent !== window && !skipParentCheck) {
+            try {
+              return new Promise((resolve) => {
+                const timeout = setTimeout(() => {
+                  currentUser = 'test001';
+                  console.log('⚠️ parent 응답 시간 초과, 기본값 사용:', currentUser);
+                  saveUserInfoToStorage(currentUser);
+                  resolve();
+                }, 1000); // 시간 단축 (2000 → 1000)
 
-              window.addEventListener('message', function(event) {
-                if (event.data && event.data.type === 'userInfo') {
+                window.addEventListener('message', function(event) {
+                  if (event.data && event.data.type === 'userInfo') {
+                    clearTimeout(timeout);
+                    currentUser = event.data.userId || event.data.empNo || event.data.user || 'test001';
+                    console.log('✅ postMessage로 가져옴:', currentUser);
+                    saveUserInfoToStorage(currentUser);
+                    resolve();
+                  }
+                }, { once: true });
+
+                try {
+                  window.parent.postMessage({ type: 'requestUserInfo' }, '*');
+                } catch (postError) {
+                  console.log('postMessage 전송 실패:', postError);
                   clearTimeout(timeout);
-                  currentUser = event.data.userId || event.data.empNo || event.data.user || 'test001';
-                  console.log('✅ postMessage로 가져옴:', currentUser);
+                  currentUser = 'test001';
                   saveUserInfoToStorage(currentUser);
                   resolve();
                 }
-              }, { once: true });
-
-              window.parent.postMessage({ type: 'requestUserInfo' }, '*');
-            });
+              });
+            } catch (error) {
+              console.log('postMessage 처리 중 오류:', error);
+            }
           }
 
           // 모든 방법 실패 시 기본값
@@ -1075,6 +1095,9 @@
         console.log('🔧 수정 버튼 클릭 - 직접 수정 실행');
         
         try {
+          // 작업 실행 중 플래그 설정
+          isExecutingAction = true;
+          
           if (!selectedNoteId) {
             await customAlert('수정할 노트를 먼저 선택해주세요.');
             return;
@@ -1139,6 +1162,9 @@
         } catch (error) {
           console.error('💥 수정 중 예외 발생:', error);
           await customAlert('수정 중 오류가 발생했습니다: ' + error.message);
+        } finally {
+          // 작업 완료 후 플래그 해제
+          isExecutingAction = false;
         }
       }
 
@@ -1185,6 +1211,9 @@
         console.log('💾 saveMainNote 함수 호출됨!');
         
         try {
+          // 작업 실행 중 플래그 설정
+          isExecutingAction = true;
+          
           const form = document.getElementById('mainNoteForm');
           if (!form.checkValidity()) {
             await customAlert('모든 필수 항목을 입력하세요.');
@@ -1234,6 +1263,9 @@
         } catch (error) {
           console.error('💥 저장 중 예외 발생:', error);
           await customAlert('저장 중 오류가 발생했습니다: ' + error.message);
+        } finally {
+          // 작업 완료 후 플래그 해제
+          isExecutingAction = false;
         }
       }
 
@@ -1250,6 +1282,9 @@
         }
 
         try {
+          // 작업 실행 중 플래그 설정
+          isExecutingAction = true;
+          
           const result = await deleteNote(selectedNoteId);
           if (result.success) {
             await customAlert('노트가 삭제되었습니다.');
@@ -1264,6 +1299,9 @@
         } catch (error) {
           console.error('삭제 실패:', error);
           await customAlert('삭제 중 오류가 발생했습니다.');
+        } finally {
+          // 작업 완료 후 플래그 해제
+          isExecutingAction = false;
         }
       }
 
@@ -1815,10 +1853,12 @@
             console.log('🔒 탭 비활성화 - 보안 모드');
           } else {
             console.log('👁️ 탭 활성화 - 사용자 정보 재확인');
-            // 탭이 다시 활성화될 때 사용자 정보 재확인
+            // 탭이 다시 활성화될 때 사용자 정보 재확인 (작업 실행 중이 아닐 때만)
             setTimeout(async () => {
-              await getUserFromParent();
-              await loadUserInfo();
+              if (!isExecutingAction) {
+                await getUserFromParent(false);
+                await loadUserInfo();
+              }
             }, 100);
           }
         });
@@ -1847,7 +1887,7 @@
           
           // 2. parent page에서 사번 가져오기
           console.log('👤 사용자 정보 가져오기...');
-          await getUserFromParent();
+          await getUserFromParent(false);
 
           // 3. 현재 사용자 정보 설정
           console.log('🔍 사용자 정보 로드...');
