@@ -17,7 +17,8 @@
      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js" onerror="console.error('Supabase CDN 로딩 실패')"></script>
      <script src="./supabase.js" onerror="console.error('supabase.js 로딩 실패')"></script>
      <!-- authCheck.js: window.isExecutingAction === true 또는 window.isSwitchingTab === true 일 때는 인증 체크를 우회해야 함 -->
-    
+     
+  </head>
   <body>
     <!-- 상단 네비게이션 바 -->
     <div class="nav-bar">
@@ -1107,147 +1108,29 @@
         return canEdit;
       }
 
-             // 직접 수정 실행
-       async function executeDirectEdit() {
-         console.log('🔧 수정 버튼 클릭 - 직접 수정 실행');
-         
-         try {
-           // 작업 실행 중 플래그 설정 (authCheck 우회용)
-           isExecutingAction = true;
-           window.isExecutingAction = true;
-          
-          if (!selectedNoteId) {
-            await customAlert('수정할 노트를 먼저 선택해주세요.');
-            return;
-          }
-          
-          if (!canEditNote()) {
-            await customAlert('이 노트를 수정할 권한이 없습니다.');
-            return;
-          }
-
-          const confirmed = await customConfirm('현재 입력된 내용으로 노트를 수정하시겠습니까?');
-          if (!confirmed) {
-            return;
-          }
-
-          const form = document.getElementById('mainNoteForm');
-          if (!form.checkValidity()) {
-            await customAlert('모든 필수 항목을 입력하세요.');
-            return;
-          }
-
-          const noteData = {
-            직원번호: currentUser,
-            직원명: currentUserName,
-            구분: document.querySelector('input[name="category"]:checked').value,
-            노트날짜: formatDateForStorage(document.getElementById('mainDate').value),
-            노트번호: document.getElementById('mainNumber').value,
-            태그: window.getTags_mainTag ? window.getTags_mainTag() : '',
-            노트내용: document.getElementById('mainContent').value,
-            게시여부: document.querySelector('input[name="publish"]:checked').value
-          };
-
-          console.log('🔄 수정 데이터:', noteData);
-
-          const result = await executeNoteUpdate(selectedNoteId, noteData);
-          
-          if (result.success) {
-            await customAlert('노트가 수정되었습니다.');
-            await loadNotes();
-            
-            // 노트 조회 페이지로 이동하고 조회 모드 유지
-            switchToPage('notes');
-            
-            if (result.data && result.data.id) {
-              const newNote = result.data;
-              selectedNoteId = newNote.id;
-              
-              // 조회 모드로 설정 (selectNoteForEdit와 동일한 로직 적용)
-              setViewMode(newNote);
-              
-              // 카드 선택 표시
-              setTimeout(() => {
-                const newCard = document.querySelector(`[data-note-id="${newNote.id}"]`);
-                if (newCard) {
-                  // 기존 선택 해제
-                  document.querySelectorAll('.note-card').forEach(card => {
-                    card.classList.remove('selected');
-                  });
-                  // 현재 카드 선택 표시
-                  newCard.classList.add('selected');
-                  newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-              }, 100);
-            }
-          } else {
-            const errorMessage = result.error?.message || '알 수 없는 오류가 발생했습니다.';
-            await customAlert('수정에 실패했습니다: ' + errorMessage);
-          }
-
-                 } catch (error) {
-           console.error('💥 수정 중 예외 발생:', error);
-           await customAlert('수정 중 오류가 발생했습니다: ' + error.message);
-         } finally {
-           // 작업 완료 후 플래그 해제
-           isExecutingAction = false;
-           window.isExecutingAction = false;
-         }
-      }
-
-      // 노트 수정 실행 (삭제 후 재저장)
-      async function executeNoteUpdate(noteId, updateData) {
-        console.log('🔄 노트 수정 시작 (삭제 후 재저장):', noteId);
+      // 노트 저장 버튼 클릭 이벤트
+      async function saveMainNote() {
+        console.log('💾 저장 버튼 클릭');
+        
+        // 먼저 confirm 모달로 확인
+        const confirmed = await customConfirm('노트를 저장하시겠습니까?');
+        if (!confirmed) {
+          return;
+        }
         
         try {
-          if (!canEditNote()) {
-            throw new Error('이 노트를 수정할 권한이 없습니다.');
-          }
-
-          if (!noteId) {
-            throw new Error('수정할 노트의 ID가 없습니다.');
-          }
-
-          console.log('🗑️ 1단계: 기존 노트 삭제');
-          const deleteResult = await deleteNote(noteId);
+          // 작업 실행 중 플래그 설정 (authCheck 우회용)
+          isExecutingAction = true;
+          window.isExecutingAction = true;
           
-          if (!deleteResult.success) {
-            throw new Error('기존 노트 삭제 실패: ' + (deleteResult.error?.message || '알 수 없는 오류'));
-          }
-          
-          console.log('✅ 기존 노트 삭제 완료');
-
-          console.log('💾 2단계: 새로운 데이터로 저장');
-          const addResult = await addNote(updateData);
-          
-          if (!addResult.success) {
-            throw new Error('새 노트 저장 실패: ' + (addResult.error?.message || '알 수 없는 오류'));
-          }
-          
-          console.log('✅ 새 노트 저장 완료');
-          return addResult;
-
-        } catch (error) {
-          console.error('❌ 노트 수정 실패:', error);
-          return { success: false, error: { message: error.message } };
-        }
-      }
-
-             // 메인 폼 저장
-       async function saveMainNote() {
-         console.log('💾 saveMainNote 함수 호출됨!');
-         
-         try {
-           // 작업 실행 중 플래그 설정 (authCheck 우회용)
-           isExecutingAction = true;
-           window.isExecutingAction = true;
-          
+          // 폼 유효성 검사
           const form = document.getElementById('mainNoteForm');
           if (!form.checkValidity()) {
             await customAlert('모든 필수 항목을 입력하세요.');
             return;
           }
 
+          // 노트 데이터 생성
           const noteData = {
             직원번호: currentUser,
             직원명: currentUserName,
@@ -1261,95 +1144,167 @@
 
           console.log('💾 저장 데이터:', noteData);
 
-          console.log('✏️ 새 노트 저장 실행');
+          // 서버에 저장 실행
           const result = await addNote(noteData);
 
           if (result.success) {
             await customAlert('노트가 저장되었습니다.');
+            
+            // 노트 목록 다시 로드
             await loadNotes();
             
-            // 노트 조회 페이지로 이동하고 조회 모드 유지
+            // 조회 탭으로 이동
             switchToPage('notes');
             
-            // 저장된 노트 선택 및 조회 모드 설정
-            if (result.data && result.data.id) {
-              const newNote = result.data;
-              selectedNoteId = newNote.id;
-              
-              // 조회 모드로 설정 (selectNoteForEdit와 동일한 로직 적용)
-              setViewMode(newNote);
-              
-              setTimeout(() => {
-                const newCard = document.querySelector(`[data-note-id="${newNote.id}"]`);
-                if (newCard) {
-                  // 기존 선택 해제
-                  document.querySelectorAll('.note-card').forEach(card => {
-                    card.classList.remove('selected');
-                  });
-                  // 현재 카드 선택 표시
-                  newCard.classList.add('selected');
-                  newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-              }, 100);
-            }
-            
-            // 저장 후에는 폼을 초기화하지 않고 조회 모드 유지
           } else {
             const errorMessage = result.error?.message || '알 수 없는 오류가 발생했습니다.';
             await customAlert('저장에 실패했습니다: ' + errorMessage);
           }
 
-                 } catch (error) {
-           console.error('💥 저장 중 예외 발생:', error);
-           await customAlert('저장 중 오류가 발생했습니다: ' + error.message);
-         } finally {
-           // 작업 완료 후 플래그 해제
-           isExecutingAction = false;
-           window.isExecutingAction = false;
-         }
-       }
+        } catch (error) {
+          console.error('💥 저장 중 예외 발생:', error);
+          await customAlert('저장 중 오류가 발생했습니다: ' + error.message);
+        } finally {
+          // 작업 완료 후 플래그 해제
+          isExecutingAction = false;
+          window.isExecutingAction = false;
+        }
+      }
 
-      // 메인 폼 삭제
+      // 노트 수정 버튼 클릭 이벤트
+      async function editMainNote() {
+        console.log('🔧 수정 버튼 클릭');
+        
+        if (!selectedNoteId) {
+          await customAlert('수정할 노트를 먼저 선택해주세요.');
+          return;
+        }
+        
+        if (!canEditNote()) {
+          await customAlert('이 노트를 수정할 권한이 없습니다.');
+          return;
+        }
+
+        // 먼저 confirm 모달로 확인
+        const confirmed = await customConfirm('현재 입력된 내용으로 노트를 수정하시겠습니까?');
+        if (!confirmed) {
+          return;
+        }
+        
+        try {
+          // 작업 실행 중 플래그 설정 (authCheck 우회용)
+          isExecutingAction = true;
+          window.isExecutingAction = true;
+          
+          // 폼 유효성 검사
+          const form = document.getElementById('mainNoteForm');
+          if (!form.checkValidity()) {
+            await customAlert('모든 필수 항목을 입력하세요.');
+            return;
+          }
+
+          // 노트 데이터 생성
+          const noteData = {
+            직원번호: currentUser,
+            직원명: currentUserName,
+            구분: document.querySelector('input[name="category"]:checked').value,
+            노트날짜: formatDateForStorage(document.getElementById('mainDate').value),
+            노트번호: document.getElementById('mainNumber').value,
+            태그: window.getTags_mainTag ? window.getTags_mainTag() : '',
+            노트내용: document.getElementById('mainContent').value,
+            게시여부: document.querySelector('input[name="publish"]:checked').value
+          };
+
+          console.log('🔄 수정 데이터:', noteData);
+
+          // 기존 노트 삭제
+          console.log('🗑️ 기존 노트 삭제 중...');
+          const deleteResult = await deleteNote(selectedNoteId);
+          
+          if (!deleteResult.success) {
+            throw new Error('기존 노트 삭제 실패: ' + (deleteResult.error?.message || '알 수 없는 오류'));
+          }
+          
+          console.log('✅ 기존 노트 삭제 완료');
+
+          // 새로운 데이터로 저장
+          console.log('💾 새로운 데이터로 저장 중...');
+          const addResult = await addNote(noteData);
+          
+          if (!addResult.success) {
+            throw new Error('새 노트 저장 실패: ' + (addResult.error?.message || '알 수 없는 오류'));
+          }
+          
+          console.log('✅ 새 노트 저장 완료');
+
+          await customAlert('노트가 수정되었습니다.');
+          
+          // 노트 목록 다시 로드
+          await loadNotes();
+          
+          // 조회 탭으로 이동
+          switchToPage('notes');
+
+        } catch (error) {
+          console.error('💥 수정 중 예외 발생:', error);
+          await customAlert('수정 중 오류가 발생했습니다: ' + error.message);
+        } finally {
+          // 작업 완료 후 플래그 해제
+          isExecutingAction = false;
+          window.isExecutingAction = false;
+        }
+      }
+
+      // 노트 삭제 버튼 클릭 이벤트
       async function deleteMainNote() {
+        console.log('🗑️ 삭제 버튼 클릭');
+        
         if (!selectedNoteId) {
           await customAlert('삭제할 노트를 선택하세요.');
           return;
         }
 
+        if (!canEditNote()) {
+          await customAlert('이 노트를 삭제할 권한이 없습니다.');
+          return;
+        }
+
+        // 먼저 confirm 모달로 확인
         const confirmed = await customConfirm('정말로 삭제하시겠습니까?');
         if (!confirmed) {
           return;
         }
 
-                 try {
-           // 작업 실행 중 플래그 설정 (authCheck 우회용)
-           isExecutingAction = true;
-           window.isExecutingAction = true;
-           
-           const result = await deleteNote(selectedNoteId);
+        try {
+          // 작업 실행 중 플래그 설정 (authCheck 우회용)
+          isExecutingAction = true;
+          window.isExecutingAction = true;
+          
+          // 서버에서 노트 삭제 실행
+          const result = await deleteNote(selectedNoteId);
+          
           if (result.success) {
             await customAlert('노트가 삭제되었습니다.');
+            
+            // 노트 목록 다시 로드
             await loadNotes();
             
-            // 노트 조회 페이지로 이동하고 작성 모드로 설정
+            // 조회 탭으로 이동
             switchToPage('notes');
             
-            // 삭제 후에는 선택된 노트가 없으므로 작성 모드로 초기화
-            selectedNoteId = null;
-            setWriteMode();
-            await resetMainForm();
           } else {
             await customAlert('삭제에 실패했습니다: ' + (result.error?.message || '알 수 없는 오류'));
           }
-                 } catch (error) {
-           console.error('삭제 실패:', error);
-           await customAlert('삭제 중 오류가 발생했습니다.');
-         } finally {
-           // 작업 완료 후 플래그 해제
-           isExecutingAction = false;
-           window.isExecutingAction = false;
-         }
-       }
+          
+        } catch (error) {
+          console.error('💥 삭제 중 예외 발생:', error);
+          await customAlert('삭제 중 오류가 발생했습니다: ' + error.message);
+        } finally {
+          // 작업 완료 후 플래그 해제
+          isExecutingAction = false;
+          window.isExecutingAction = false;
+        }
+      }
 
       // 검색 수행
       async function performSearch() {
@@ -1799,7 +1754,7 @@
           console.log('🖱️ 저장 버튼 클릭됨!');
           saveMainNote();
         });
-        document.getElementById('editMainBtn').addEventListener('click', () => executeDirectEdit());
+        document.getElementById('editMainBtn').addEventListener('click', editMainNote);
         document.getElementById('deleteMainBtn').addEventListener('click', deleteMainNote);
         document.getElementById('resetMainBtn').addEventListener('click', resetMainForm);
 
