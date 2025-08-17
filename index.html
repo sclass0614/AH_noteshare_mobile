@@ -1149,8 +1149,6 @@
           const result = await addNote(noteData);
 
           if (result.success) {
-            await customAlert('노트가 저장되었습니다.');
-            
             // 노트 목록 다시 로드
             await loadNotes();
             
@@ -1241,8 +1239,6 @@
           
           console.log('✅ 새 노트 저장 완료');
 
-          await customAlert('노트가 수정되었습니다.');
-          
           // 노트 목록 다시 로드
           await loadNotes();
           
@@ -1291,8 +1287,6 @@
           const result = await deleteNote(selectedNoteId);
           
           if (result.success) {
-            await customAlert('노트가 삭제되었습니다.');
-            
             // 노트 목록 다시 로드
             await loadNotes();
             
