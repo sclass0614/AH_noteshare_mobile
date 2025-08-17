@@ -117,10 +117,10 @@
 
           <!-- 버튼 영역 -->
           <div class="button-section">
-            <button id="resetMainBtn" class="action-btn reset-btn">초기화</button>
-            <button id="saveMainBtn" class="action-btn save-btn">저장</button>
-            <button id="editMainBtn" class="action-btn edit-btn" disabled>수정</button>
-            <button id="deleteMainBtn" class="action-btn delete-btn" disabled>삭제</button>
+            <button type="button" id="resetMainBtn" class="action-btn reset-btn">초기화</button>
+            <button type="button" id="saveMainBtn" class="action-btn save-btn">저장</button>
+            <button type="button" id="editMainBtn" class="action-btn edit-btn" disabled>수정</button>
+            <button type="button" id="deleteMainBtn" class="action-btn delete-btn" disabled>삭제</button>
           </div>
         </form>
       </div>
@@ -1751,12 +1751,22 @@
 
         // 메인 폼 버튼 이벤트
         document.getElementById('saveMainBtn').addEventListener('click', function(e) {
+          e.preventDefault(); // 폼 제출 방지
           console.log('🖱️ 저장 버튼 클릭됨!');
           saveMainNote();
         });
-        document.getElementById('editMainBtn').addEventListener('click', editMainNote);
-        document.getElementById('deleteMainBtn').addEventListener('click', deleteMainNote);
-        document.getElementById('resetMainBtn').addEventListener('click', resetMainForm);
+        document.getElementById('editMainBtn').addEventListener('click', function(e) {
+          e.preventDefault(); // 폼 제출 방지
+          editMainNote();
+        });
+        document.getElementById('deleteMainBtn').addEventListener('click', function(e) {
+          e.preventDefault(); // 폼 제출 방지
+          deleteMainNote();
+        });
+        document.getElementById('resetMainBtn').addEventListener('click', function(e) {
+          e.preventDefault(); // 폼 제출 방지
+          resetMainForm();
+        });
 
         // 날짜 변경 시 노트번호 업데이트
         document.getElementById('mainDate').addEventListener('change', updateNoteNumber);
