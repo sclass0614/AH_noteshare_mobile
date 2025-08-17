@@ -13,10 +13,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles_m.css" />
     
-    <!-- Supabase JS 라이브러리 -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js" onerror="console.error('Supabase CDN 로딩 실패')"></script>
-    <script src="./supabase.js" onerror="console.error('supabase.js 로딩 실패')"></script>
-    <script type="module" src="https://sclass0614.github.io/authCheck/authCheck.js" onerror="console.log('authCheck.js 로딩 실패 - 계속 진행')"></script>
+         <!-- Supabase JS 라이브러리 -->
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js" onerror="console.error('Supabase CDN 로딩 실패')"></script>
+     <script src="./supabase.js" onerror="console.error('supabase.js 로딩 실패')"></script>
+     <!-- authCheck.js: window.isExecutingAction === true 일 때는 인증 체크를 우회해야 함 -->
+     <script type="module" src="https://sclass0614.github.io/authCheck/authCheck.js" onerror="console.log('authCheck.js 로딩 실패 - 계속 진행')"></script>
   </head>
   <body>
     <!-- 상단 네비게이션 바 -->
@@ -407,7 +408,7 @@
               <h3 style="color: #e74c3c; margin-bottom: 1rem; font-size: 1.1rem;">⚠️ 접근 권한 없음</h3>
               <p style="margin-bottom: 1rem; font-size: 0.9rem; line-height: 1.4;">직원명단에 등록되지 않은 사용자입니다.</p>
               <p style="font-size: 0.8rem; color: #666; line-height: 1.3;">관리자에게 문의하시기 바랍니다.</p>
-              <p style="font-size: 0.7rem; color: #999; margin-top: 1rem; word-break: break-all;">현재 사용자: ${getSafeCurrentUser()}</p>
+              <p style="font-size: 0.7rem; color: #999; margin-top: 1rem; word-break: break-all;">현재 사용자: ${currentUser}</p>
             </div>
           `;
           
@@ -415,8 +416,7 @@
         }
         
         // 헤더의 사용자 정보도 업데이트
-        const safeCurrentUser = getSafeCurrentUser();
-        document.getElementById('userEmployeeNumber').textContent = safeCurrentUser;
+        document.getElementById('userEmployeeNumber').textContent = currentUser;
         document.getElementById('userEmployeeName').textContent = '권한 없음';
       }
 
@@ -472,42 +472,11 @@
         }
       }
 
-      // 전역 변수: 작업 실행 중 flag
-      let isExecutingAction = false;
-
-      // 안전한 사용자 정보 가져오기 함수 (userEmployeeNumber 요소에서)
-      function getSafeCurrentUser() {
-        try {
-          const userEmployeeNumberElement = document.getElementById('userEmployeeNumber');
-          if (userEmployeeNumberElement && userEmployeeNumberElement.textContent.trim() && 
-              userEmployeeNumberElement.textContent.trim() !== '-') {
-            const safeUser = userEmployeeNumberElement.textContent.trim();
-            console.log('✅ userEmployeeNumber에서 안전하게 사용자 정보 가져옴:', safeUser);
-            return safeUser;
-          }
-          
-          // fallback: 기존 currentUser 사용
-          if (currentUser && currentUser.trim()) {
-            console.log('🔄 기존 currentUser 사용:', currentUser);
-            return currentUser;
-          }
-          
-          // 최종 fallback: sessionStorage에서 가져오기
-          const sessionUser = sessionStorage.getItem('currentUser') || 
-                             sessionStorage.getItem('userInfo') || 
-                             sessionStorage.getItem('empNo');
-          if (sessionUser && sessionUser.trim()) {
-            console.log('💾 sessionStorage에서 사용자 정보 복원:', sessionUser);
-            return sessionUser.trim();
-          }
-          
-          console.warn('⚠️ 사용자 정보를 찾을 수 없음, 기본값 사용');
-          return 'test001';
-        } catch (error) {
-          console.error('❌ 사용자 정보 가져오기 실패:', error);
-          return currentUser || 'test001';
-        }
-      }
+             // 전역 변수: 작업 실행 중 flag (authCheck 우회용으로 window 객체에도 노출)
+       let isExecutingAction = false;
+       
+       // authCheck.js가 참조할 수 있도록 전역으로 노출
+       window.isExecutingAction = false;
 
       // parent page에서 사용자 정보 가져오기 함수 (개선된 버전)
       async function getUserFromParent(skipParentCheck = false) {
@@ -734,8 +703,7 @@
         try {
           console.log('📝 === 노트 목록 로드 시작 ===');
           
-          const safeCurrentUserForValidation = getSafeCurrentUser();
-          if (!isValidEmployee(safeCurrentUserForValidation)) {
+          if (!isValidEmployee(currentUser)) {
             console.log('🚫 직원명단에 없는 사용자입니다. 페이지 전체를 비활성화합니다.');
             cachedNotes = [];
             displayNotes(cachedNotes);
@@ -749,9 +717,8 @@
             initializeDateRange();
           }
           
-          const safeCurrentUser = getSafeCurrentUser();
           console.log('📅 날짜 범위:', currentDateRange);
-          console.log('👤 현재 사용자:', safeCurrentUser);
+          console.log('👤 현재 사용자:', currentUser);
           
           // 모바일에서 네트워크 타임아웃 처리
           const timeoutPromise = new Promise((_, reject) => {
@@ -759,7 +726,7 @@
           });
           
           const notesPromise = getNoteshareDataByDateRange(
-            safeCurrentUser, 
+            currentUser, 
             currentDateRange.startDate, 
             currentDateRange.endDate
           );
@@ -996,8 +963,7 @@
         isEditMode = false;
         selectedNoteId = note.id;
         
-        const safeCurrentUser = getSafeCurrentUser();
-        const canEdit = note.직원번호 === safeCurrentUser || safeCurrentUser === 'admin' || safeCurrentUser === 's25001';
+        const canEdit = note.직원번호 === currentUser || currentUser === 'admin' || currentUser === 's25001';
         
         document.getElementById('saveMainBtn').disabled = true;
         document.getElementById('editMainBtn').disabled = !canEdit;
@@ -1098,11 +1064,10 @@
       // 노트번호 업데이트
       async function updateNoteNumber() {
         const dateValue = document.getElementById('mainDate').value;
-        const safeCurrentUser = getSafeCurrentUser();
-        if (dateValue && safeCurrentUser) {
+        if (dateValue && currentUser) {
           try {
             const formattedDate = formatDateForStorage(dateValue);
-            const noteNumber = await generateNoteNumber(safeCurrentUser, formattedDate);
+            const noteNumber = await generateNoteNumber(currentUser, formattedDate);
             document.getElementById('mainNumber').value = noteNumber;
           } catch (error) {
             console.error('노트번호 생성 실패:', error);
@@ -1122,21 +1087,21 @@
           return false;
         }
         
-        const safeCurrentUser = getSafeCurrentUser();
-        const canEdit = selectedNote.직원번호 === safeCurrentUser || 
-                       safeCurrentUser === 'admin' || 
-                       safeCurrentUser === 's25001';
+        const canEdit = selectedNote.직원번호 === currentUser || 
+                       currentUser === 'admin' || 
+                       currentUser === 's25001';
         
         return canEdit;
       }
 
-      // 직접 수정 실행
-      async function executeDirectEdit() {
-        console.log('🔧 수정 버튼 클릭 - 직접 수정 실행');
-        
-        try {
-          // 작업 실행 중 플래그 설정
-          isExecutingAction = true;
+             // 직접 수정 실행
+       async function executeDirectEdit() {
+         console.log('🔧 수정 버튼 클릭 - 직접 수정 실행');
+         
+         try {
+           // 작업 실행 중 플래그 설정 (authCheck 우회용)
+           isExecutingAction = true;
+           window.isExecutingAction = true;
           
           if (!selectedNoteId) {
             await customAlert('수정할 노트를 먼저 선택해주세요.');
@@ -1159,16 +1124,9 @@
             return;
           }
 
-          // 안전한 사용자 정보 가져오기
-          const safeCurrentUser = getSafeCurrentUser();
-          const userNameElement = document.getElementById('userEmployeeName');
-          const safeCurrentUserName = userNameElement && userNameElement.textContent.trim() !== '-' 
-            ? userNameElement.textContent.trim() 
-            : (currentUserName || '알 수 없음');
-
           const noteData = {
-            직원번호: safeCurrentUser,
-            직원명: safeCurrentUserName,
+            직원번호: currentUser,
+            직원명: currentUserName,
             구분: document.querySelector('input[name="category"]:checked').value,
             노트날짜: formatDateForStorage(document.getElementById('mainDate').value),
             노트번호: document.getElementById('mainNumber').value,
@@ -1206,13 +1164,14 @@
             await customAlert('수정에 실패했습니다: ' + errorMessage);
           }
 
-        } catch (error) {
-          console.error('💥 수정 중 예외 발생:', error);
-          await customAlert('수정 중 오류가 발생했습니다: ' + error.message);
-        } finally {
-          // 작업 완료 후 플래그 해제
-          isExecutingAction = false;
-        }
+                 } catch (error) {
+           console.error('💥 수정 중 예외 발생:', error);
+           await customAlert('수정 중 오류가 발생했습니다: ' + error.message);
+         } finally {
+           // 작업 완료 후 플래그 해제
+           isExecutingAction = false;
+           window.isExecutingAction = false;
+         }
       }
 
       // 노트 수정 실행 (삭제 후 재저장)
@@ -1253,13 +1212,14 @@
         }
       }
 
-      // 메인 폼 저장
-      async function saveMainNote() {
-        console.log('💾 saveMainNote 함수 호출됨!');
-        
-        try {
-          // 작업 실행 중 플래그 설정
-          isExecutingAction = true;
+             // 메인 폼 저장
+       async function saveMainNote() {
+         console.log('💾 saveMainNote 함수 호출됨!');
+         
+         try {
+           // 작업 실행 중 플래그 설정 (authCheck 우회용)
+           isExecutingAction = true;
+           window.isExecutingAction = true;
           
           const form = document.getElementById('mainNoteForm');
           if (!form.checkValidity()) {
@@ -1267,16 +1227,9 @@
             return;
           }
 
-          // 안전한 사용자 정보 가져오기
-          const safeCurrentUser = getSafeCurrentUser();
-          const userNameElement = document.getElementById('userEmployeeName');
-          const safeCurrentUserName = userNameElement && userNameElement.textContent.trim() !== '-' 
-            ? userNameElement.textContent.trim() 
-            : (currentUserName || '알 수 없음');
-
           const noteData = {
-            직원번호: safeCurrentUser,
-            직원명: safeCurrentUserName,
+            직원번호: currentUser,
+            직원명: currentUserName,
             구분: document.querySelector('input[name="category"]:checked').value,
             노트날짜: formatDateForStorage(document.getElementById('mainDate').value),
             노트번호: document.getElementById('mainNumber').value,
@@ -1314,14 +1267,15 @@
             await customAlert('저장에 실패했습니다: ' + errorMessage);
           }
 
-        } catch (error) {
-          console.error('💥 저장 중 예외 발생:', error);
-          await customAlert('저장 중 오류가 발생했습니다: ' + error.message);
-        } finally {
-          // 작업 완료 후 플래그 해제
-          isExecutingAction = false;
-        }
-      }
+                 } catch (error) {
+           console.error('💥 저장 중 예외 발생:', error);
+           await customAlert('저장 중 오류가 발생했습니다: ' + error.message);
+         } finally {
+           // 작업 완료 후 플래그 해제
+           isExecutingAction = false;
+           window.isExecutingAction = false;
+         }
+       }
 
       // 메인 폼 삭제
       async function deleteMainNote() {
@@ -1335,11 +1289,12 @@
           return;
         }
 
-        try {
-          // 작업 실행 중 플래그 설정
-          isExecutingAction = true;
-          
-          const result = await deleteNote(selectedNoteId);
+                 try {
+           // 작업 실행 중 플래그 설정 (authCheck 우회용)
+           isExecutingAction = true;
+           window.isExecutingAction = true;
+           
+           const result = await deleteNote(selectedNoteId);
           if (result.success) {
             await customAlert('노트가 삭제되었습니다.');
             await loadNotes();
@@ -1350,14 +1305,15 @@
           } else {
             await customAlert('삭제에 실패했습니다: ' + (result.error?.message || '알 수 없는 오류'));
           }
-        } catch (error) {
-          console.error('삭제 실패:', error);
-          await customAlert('삭제 중 오류가 발생했습니다.');
-        } finally {
-          // 작업 완료 후 플래그 해제
-          isExecutingAction = false;
-        }
-      }
+                 } catch (error) {
+           console.error('삭제 실패:', error);
+           await customAlert('삭제 중 오류가 발생했습니다.');
+         } finally {
+           // 작업 완료 후 플래그 해제
+           isExecutingAction = false;
+           window.isExecutingAction = false;
+         }
+       }
 
       // 검색 수행
       async function performSearch() {
@@ -1369,9 +1325,7 @@
         const publishFilter = document.querySelector('input[name="publishFilter"]:checked').value;
 
         try {
-          const safeCurrentUser = getSafeCurrentUser();
-          
-          if (!isValidEmployee(safeCurrentUser)) {
+          if (!isValidEmployee(currentUser)) {
             console.log('🚫 직원명단에 없는 사용자입니다. 페이지 전체를 비활성화합니다.');
             cachedNotes = [];
             displayNotes(cachedNotes);
@@ -1385,7 +1339,7 @@
             currentDateRange.startDate = startDate;
             currentDateRange.endDate = endDate;
             
-            cachedNotes = await getNoteshareDataByDateRange(safeCurrentUser, startDate, endDate);
+            cachedNotes = await getNoteshareDataByDateRange(currentUser, startDate, endDate);
             console.log('새로 조회된 노트 수:', cachedNotes.length);
           }
           
