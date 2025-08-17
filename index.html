@@ -1154,6 +1154,9 @@
             // 노트 목록 다시 로드
             await loadNotes();
             
+            // 편집 탭 초기화
+            await resetMainForm();
+            
             // 조회 탭으로 이동
             switchToPage('notes');
             
@@ -1243,6 +1246,9 @@
           // 노트 목록 다시 로드
           await loadNotes();
           
+          // 편집 탭 초기화
+          await resetMainForm();
+          
           // 조회 탭으로 이동
           switchToPage('notes');
 
@@ -1289,6 +1295,9 @@
             
             // 노트 목록 다시 로드
             await loadNotes();
+            
+            // 편집 탭 초기화
+            await resetMainForm();
             
             // 조회 탭으로 이동
             switchToPage('notes');
